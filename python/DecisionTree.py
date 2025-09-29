@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 
 class DecisionNode:
     def __init__(self, feature=None, threshold=None, left=None, right=None, value=None):
@@ -91,13 +90,10 @@ class DecisionTreeClassifier:
         self.root = None
         
     def fit(self, X, y):
-        """Build the decision tree"""
         self.root = self._build_tree(X, y, depth=0)
         return self
     
     def _build_tree(self, X, y, depth=0):
-        """Recursively build the decision tree"""
-        n_samples = len(y)
         n_features = X.shape[1]
         
         # Create a leaf node if stopping criteria are met
@@ -150,7 +146,6 @@ class DecisionTreeClassifier:
         )
     
     def _should_stop_splitting(self, X, y, depth):
-        """Check if we should stop splitting"""
         # Check max depth
         if self.max_depth is not None and depth >= self.max_depth:
             return True
@@ -166,15 +161,12 @@ class DecisionTreeClassifier:
         return False
     
     def _get_leaf_value(self, y):
-        """Get the most common class for leaf node"""
         return y.mode().iloc[0]  # Most frequent class
     
     def predict(self, X):
-        """Make predictions for input data"""
         return [self._predict_sample(sample) for _, sample in X.iterrows()]
     
     def _predict_sample(self, sample):
-        """Predict a single sample by traversing the tree"""
         node = self.root
         
         while node.value is None:  # While not a leaf node
@@ -194,7 +186,6 @@ class DecisionTreeClassifier:
         return node.value
     
     def print_tree(self, node=None, depth=0, prefix="Root: "):
-        """Print the tree structure for visualization"""
         if node is None:
             node = self.root
         
@@ -213,29 +204,3 @@ class DecisionTreeClassifier:
                 self.print_tree(node.left, depth + 1, "├─ True: ")
             if node.right:
                 self.print_tree(node.right, depth + 1, "└─ False: ")
-
-# Example usage:
-if __name__ == "__main__":
-    # Create sample data
-    data = {
-        'feature_1': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-        'feature_2': [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
-        'target': ['A', 'A', 'B', 'B', 'A', 'B', 'A', 'B', 'B', 'A']
-    }
-    
-    df = pd.DataFrame(data)
-    X = df[['feature_1', 'feature_2']]
-    y = df['target']
-    
-    # Build and train the tree
-    tree = DecisionTreeClassifier(max_depth=3, min_samples_split=2)
-    tree.fit(X, y)
-    
-    # Print the tree structure
-    print("Decision Tree Structure:")
-    tree.print_tree()
-    
-    # Make predictions
-    predictions = tree.predict(X)
-    print(f"\nPredictions: {predictions}")
-    print(f"Actual:      {list(y)}")
