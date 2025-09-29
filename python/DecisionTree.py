@@ -1,3 +1,6 @@
+import pandas as pd
+import numpy as np
+
 class DecisionNode:
     def __init__(self, feature=None, threshold=None, left=None, right=None, value=None):
         self.feature = feature
@@ -29,7 +32,7 @@ class DecisionNode:
             unique_values = sorted(feature_values.unique())
 
             if len(unique_values) <= 1:
-                return []  # No splits possible
+                return []
 
             return [(unique_values[i] + unique_values[i+1]) / 2 for i in range(len(unique_values) - 1)]
 
@@ -77,31 +80,162 @@ class DecisionNode:
                     best_feature = feature_index
                     best_threshold = threshold
 
-                self.feature = best_feature
-                self.threshold = best_threshold
-
         return best_feature, best_threshold, best_impurity_reduction
-    
-class DecisionTree:
-    def __init__(self, max_depth=5, min_samples_split=2, num_features=None):
+
+class DecisionTreeClassifier:
+    def __init__(self, max_depth=None, min_samples_split=2, min_samples_leaf=1, min_impurity_decrease=0.0):
         self.max_depth = max_depth
         self.min_samples_split = min_samples_split
-        self.num_features = num_features
+        self.min_samples_leaf = min_samples_leaf
+        self.min_impurity_decrease = min_impurity_decrease
         self.root = None
-
+        
     def fit(self, X, y):
-        self.n_features = X.shape[1]
-        if self.num_features is None:
-            self.num_features = self.n_features  # Use all features if not specified
-
+        """Build the decision tree"""
         self.root = self._build_tree(X, y, depth=0)
+        return self
+    
+    def _build_tree(self, X, y, depth=0):
+        """Recursively build the decision tree"""
+        n_samples = len(y)
+        n_features = X.shape[1]
+        
+        # Create a leaf node if stopping criteria are met
+        if (self._should_stop_splitting(X, y, depth)):
+            leaf_value = self._get_leaf_value(y)
+            return DecisionNode(value=leaf_value)
+        
+        # Find the best split
+        features_to_consider = list(range(n_features))
+        node = DecisionNode()
+        best_feature, best_threshold, best_impurity_reduction = node.find_best_split(
+            X, y, features_to_consider
+        )
+        
+        # If no good split found or impurity reduction is too small, create leaf
+        if (best_feature is None or 
+            best_impurity_reduction < self.min_impurity_decrease):
+            leaf_value = self._get_leaf_value(y)
+            return DecisionNode(value=leaf_value)
+        
+        # Create the split
+        feature_values = X.iloc[:, best_feature]
+        if isinstance(best_threshold, str):
+            left_mask = feature_values == best_threshold
+        else:
+            left_mask = feature_values <= best_threshold
+        
+        right_mask = ~left_mask
+        
+        # Check minimum samples per leaf
+        if (left_mask.sum() < self.min_samples_leaf or 
+            right_mask.sum() < self.min_samples_leaf):
+            leaf_value = self._get_leaf_value(y)
+            return DecisionNode(value=leaf_value)
+        
+        # Split the data
+        X_left, y_left = X[left_mask], y[left_mask]
+        X_right, y_right = X[right_mask], y[right_mask]
+        
+        # Recursively build left and right subtrees
+        left_child = self._build_tree(X_left, y_left, depth + 1)
+        right_child = self._build_tree(X_right, y_right, depth + 1)
+        
+        # Create and return the internal node
+        return DecisionNode(
+            feature=best_feature,
+            threshold=best_threshold,
+            left=left_child,
+            right=right_child
+        )
+    
+    def _should_stop_splitting(self, X, y, depth):
+        """Check if we should stop splitting"""
+        # Check max depth
+        if self.max_depth is not None and depth >= self.max_depth:
+            return True
+        
+        # Check minimum samples to split
+        if len(y) < self.min_samples_split:
+            return True
+        
+        # Check if all samples have the same class
+        if len(y.unique()) == 1:
+            return True
+        
+        return False
+    
+    def _get_leaf_value(self, y):
+        """Get the most common class for leaf node"""
+        return y.mode().iloc[0]  # Most frequent class
+    
+    def predict(self, X):
+        """Make predictions for input data"""
+        return [self._predict_sample(sample) for _, sample in X.iterrows()]
+    
+    def _predict_sample(self, sample):
+        """Predict a single sample by traversing the tree"""
+        node = self.root
+        
+        while node.value is None:  # While not a leaf node
+            if isinstance(node.threshold, str):
+                # Categorical feature
+                if sample.iloc[node.feature] == node.threshold:
+                    node = node.left
+                else:
+                    node = node.right
+            else:
+                # Numerical feature
+                if sample.iloc[node.feature] <= node.threshold:
+                    node = node.left
+                else:
+                    node = node.right
+        
+        return node.value
+    
+    def print_tree(self, node=None, depth=0, prefix="Root: "):
+        """Print the tree structure for visualization"""
+        if node is None:
+            node = self.root
+        
+        if node.value is not None:  # Leaf node
+            print("  " * depth + prefix + f"Predict: {node.value}")
+        else:  # Internal node
+            feature_name = f"Feature_{node.feature}"
+            if isinstance(node.threshold, str):
+                condition = f"{feature_name} == '{node.threshold}'"
+            else:
+                condition = f"{feature_name} <= {node.threshold:.3f}"
+            
+            print("  " * depth + prefix + condition)
+            
+            if node.left:
+                self.print_tree(node.left, depth + 1, "├─ True: ")
+            if node.right:
+                self.print_tree(node.right, depth + 1, "└─ False: ")
 
-    def _build_tree(self, X, y, depth):
-        num_samples, num_features = X.shape
-        unique_classes = y.nunique()
-
-        # Stopping criteria
-        if (depth >= self.max_depth or 
-            num_samples < self.min_samples_split or 
-            unique_classes == 1):
-            leaf_value = y.mode()[0]  # Most common class
+# Example usage:
+if __name__ == "__main__":
+    # Create sample data
+    data = {
+        'feature_1': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        'feature_2': [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+        'target': ['A', 'A', 'B', 'B', 'A', 'B', 'A', 'B', 'B', 'A']
+    }
+    
+    df = pd.DataFrame(data)
+    X = df[['feature_1', 'feature_2']]
+    y = df['target']
+    
+    # Build and train the tree
+    tree = DecisionTreeClassifier(max_depth=3, min_samples_split=2)
+    tree.fit(X, y)
+    
+    # Print the tree structure
+    print("Decision Tree Structure:")
+    tree.print_tree()
+    
+    # Make predictions
+    predictions = tree.predict(X)
+    print(f"\nPredictions: {predictions}")
+    print(f"Actual:      {list(y)}")
