@@ -4,6 +4,7 @@ This repository contains my implementation of a Decision Tree Classifier from sc
 
 ## Repository Structure
 
+```
 ├── README.md
 ├── loan_data.csv
 ├── python
@@ -18,6 +19,7 @@ This repository contains my implementation of a Decision Tree Classifier from sc
     ├── DecisionTree.h
     ├── CSVReader.cpp
     └── CSVReader.h
+```
 
 ## Replicating the Project
 
